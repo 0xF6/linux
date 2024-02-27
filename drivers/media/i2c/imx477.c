@@ -45,6 +45,27 @@ static int fstrobe_delay;
 module_param(fstrobe_delay, int, 0644);
 MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting to expose and the start of the strobe pulse");
 
+static int fstrobe_dly_rs;
+module_param(fstrobe_dly_rs, int, 0644);
+MODULE_PARM_DESC(fstrobe_dly_rs, "FLASH_STRB_DLY_RS");
+
+static int vsync_polarity;
+module_param(vsync_polarity, int, 0644);
+MODULE_PARM_DESC(vsync_polarity, "vsync_polarity");
+
+static int vsync_width;
+module_param(vsync_width, int, 0644);
+MODULE_PARM_DESC(vsync_width, "vsync_width");
+
+static int hsync_polarity;
+module_param(hsync_polarity, int, 0644);
+MODULE_PARM_DESC(hsync_polarity, "hsync_polarity");
+
+static int hsync_width;
+module_param(hsync_width, int, 0644);
+MODULE_PARM_DESC(hsync_width, "hsync_width");
+
+
 #define IMX477_REG_VALUE_08BIT		1
 #define IMX477_REG_VALUE_16BIT		2
 
@@ -1774,10 +1795,19 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	// FLASH_STRB_START_POINT
 	imx477_write_reg(imx477, 0x0c14, IMX477_REG_VALUE_16BIT, fstrobe_delay);
 	// FLASH_STRB_DLY_RS
-	imx477_write_reg(imx477, 0x0c16, IMX477_REG_VALUE_16BIT, 0);
+	imx477_write_reg(imx477, 0x0c16, IMX477_REG_VALUE_16BIT, fstrobe_dly_rs);
 	// FLASH_TRIG_RS
 	imx477_write_reg(imx477, 0x0c1B, IMX477_REG_VALUE_08BIT,
 			 fstrobe_enable ? 1 : 0);
+
+	// V sync polarity
+	imx477_write_reg(imx477, 0x4F0C, IMX477_REG_VALUE_08BIT, !vsync_polarity);
+	// V sync width
+	imx477_write_reg(imx477, 0x4F0D, IMX477_REG_VALUE_16BIT, min(max(vsync_width, 0), 7));
+	// H sync polarity
+	imx477_write_reg(imx477, 0x4F0E, IMX477_REG_VALUE_08BIT, !!hsync_polarity);
+	// H sync width
+	imx477_write_reg(imx477, 0x4F0F, IMX477_REG_VALUE_16BIT, min(max(hsync_width, 0), 7));
 
 	/* Set on-sensor DPC. */
 	imx477_write_reg(imx477, 0x0b05, IMX477_REG_VALUE_08BIT, !!dpc_enable);
