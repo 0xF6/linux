@@ -1803,11 +1803,11 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	// V sync polarity
 	imx477_write_reg(imx477, 0x4F0C, IMX477_REG_VALUE_08BIT, !vsync_polarity);
 	// V sync width
-	imx477_write_reg(imx477, 0x4F0D, IMX477_REG_VALUE_16BIT, min(max(vsync_width, 0), 7));
+	imx477_write_reg(imx477, 0x4F0D, IMX477_REG_VALUE_08BIT, min(max(vsync_width, 0), 7));
 	// H sync polarity
 	imx477_write_reg(imx477, 0x4F0E, IMX477_REG_VALUE_08BIT, !!hsync_polarity);
 	// H sync width
-	imx477_write_reg(imx477, 0x4F0F, IMX477_REG_VALUE_16BIT, min(max(hsync_width, 0), 7));
+	imx477_write_reg(imx477, 0x4F0F, IMX477_REG_VALUE_08BIT, min(max(hsync_width, 0), 7));
 
 	/* Set on-sensor DPC. */
 	imx477_write_reg(imx477, 0x0b05, IMX477_REG_VALUE_08BIT, !!dpc_enable);
