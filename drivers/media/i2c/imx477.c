@@ -29,6 +29,43 @@ static int trigger_mode;
 module_param(trigger_mode, int, 0644);
 MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 
+static int fstrobe_enable;
+module_param(fstrobe_enable, int, 0644);
+MODULE_PARM_DESC(fstrobe_enable, "Enable fstrobe signal");
+
+static int fstrobe_cont_trig;
+module_param(fstrobe_cont_trig, int, 0644);
+MODULE_PARM_DESC(fstrobe_cont_trig, "Configure fstrobe to be one-shot (0) or continuous (1)");
+
+static int fstrobe_width = 1;
+module_param(fstrobe_width, int, 0644);
+MODULE_PARM_DESC(fstrobe_width, "Set fstrobe pulse width in units of INCK");
+
+static int fstrobe_delay;
+module_param(fstrobe_delay, int, 0644);
+MODULE_PARM_DESC(fstrobe_delay, "Set fstrobe delay from end all lines starting to expose and the start of the strobe pulse");
+
+static int fstrobe_dly_rs;
+module_param(fstrobe_dly_rs, int, 0644);
+MODULE_PARM_DESC(fstrobe_dly_rs, "FLASH_STRB_DLY_RS");
+
+static int vsync_polarity;
+module_param(vsync_polarity, int, 0644);
+MODULE_PARM_DESC(vsync_polarity, "vsync_polarity");
+
+static int vsync_width;
+module_param(vsync_width, int, 0644);
+MODULE_PARM_DESC(vsync_width, "vsync_width");
+
+static int hsync_polarity;
+module_param(hsync_polarity, int, 0644);
+MODULE_PARM_DESC(hsync_polarity, "hsync_polarity");
+
+static int hsync_width;
+module_param(hsync_width, int, 0644);
+MODULE_PARM_DESC(hsync_width, "hsync_width");
+
+
 #define IMX477_REG_VALUE_08BIT		1
 #define IMX477_REG_VALUE_16BIT		2
 
@@ -63,10 +100,10 @@ MODULE_PARM_DESC(trigger_mode, "Set vsync trigger mode: 1=source, 2=sink");
 #define IMX477_LONG_EXP_SHIFT_REG	0x3100
 
 /* Exposure control */
-#define IMX477_REG_EXPOSURE		0x0202
+#define IMX477_REG_EXPOSURE		0x0210
 #define IMX477_EXPOSURE_OFFSET		22
-#define IMX477_EXPOSURE_MIN		4
-#define IMX477_EXPOSURE_STEP		1
+#define IMX477_EXPOSURE_MIN		24
+#define IMX477_EXPOSURE_STEP		24
 #define IMX477_EXPOSURE_DEFAULT		0x640
 #define IMX477_EXPOSURE_MAX		(IMX477_FRAME_LENGTH_MAX - \
 					 IMX477_EXPOSURE_OFFSET)
@@ -1712,6 +1749,8 @@ static int imx477_start_streaming(struct imx477 *imx477)
 	const struct imx477_reg_list *reg_list;
 	const struct imx477_reg_list *extra_regs;
 	int ret;
+	unsigned int fst_width;
+	unsigned int fst_mult;
 
 	if (!imx477->common_regs_written) {
 		ret = imx477_write_regs(imx477, mode_common_regs,
@@ -1737,6 +1776,38 @@ static int imx477_start_streaming(struct imx477 *imx477)
 		dev_err(&client->dev, "%s failed to set mode\n", __func__);
 		return ret;
 	}
+
+	fst_width = max((unsigned int)fstrobe_width, 1U);
+	fst_mult = 1;
+
+	while (fst_width / fst_mult > 0xffff && fst_mult < 255)
+		fst_mult++;
+
+	fst_width /= fst_mult;
+
+	// FLASH_MD_RS
+	imx477_write_reg(imx477, 0x0c1A, IMX477_REG_VALUE_08BIT,
+			 ((fstrobe_cont_trig ? 1 : 0) << 0) | (1 << 1));
+	// FLASH_STRB_WIDTH
+	imx477_write_reg(imx477, 0x0c18, IMX477_REG_VALUE_16BIT, fst_width);
+	// FLASH_STRB_WIDTH adjust
+	imx477_write_reg(imx477, 0x0c12, IMX477_REG_VALUE_08BIT, fst_mult);
+	// FLASH_STRB_START_POINT
+	imx477_write_reg(imx477, 0x0c14, IMX477_REG_VALUE_16BIT, fstrobe_delay);
+	// FLASH_STRB_DLY_RS
+	imx477_write_reg(imx477, 0x0c16, IMX477_REG_VALUE_16BIT, fstrobe_dly_rs);
+	// FLASH_TRIG_RS
+	imx477_write_reg(imx477, 0x0c1B, IMX477_REG_VALUE_08BIT,
+			 fstrobe_enable ? 1 : 0);
+
+	// V sync polarity
+	imx477_write_reg(imx477, 0x4F0C, IMX477_REG_VALUE_08BIT, !vsync_polarity);
+	// V sync width
+	imx477_write_reg(imx477, 0x4F0D, IMX477_REG_VALUE_08BIT, min(max(vsync_width, 0), 7));
+	// H sync polarity
+	imx477_write_reg(imx477, 0x4F0E, IMX477_REG_VALUE_08BIT, !!hsync_polarity);
+	// H sync width
+	imx477_write_reg(imx477, 0x4F0F, IMX477_REG_VALUE_08BIT, min(max(hsync_width, 0), 7));
 
 	/* Set on-sensor DPC. */
 	imx477_write_reg(imx477, 0x0b05, IMX477_REG_VALUE_08BIT, !!dpc_enable);
